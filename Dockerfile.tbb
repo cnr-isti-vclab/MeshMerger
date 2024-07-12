@@ -1,0 +1,30 @@
+# Stage 1: Build TBB
+FROM alpine:latest AS builder
+
+# Install necessary packages to build TBB
+RUN apk update && apk add --no-cache \
+    build-base \
+    cmake \
+    git \
+    wget \
+    linux-headers
+
+WORKDIR /build
+
+# Download and extract TBB
+RUN wget https://github.com/oneapi-src/oneTBB/archive/refs/tags/v2021.12.0.tar.gz && \
+    tar -xzf v2021.12.0.tar.gz && \
+    rm v2021.12.0.tar.gz
+
+WORKDIR /build/oneTBB-2021.12.0
+
+# Build TBB using CMake, skipping tests and examples
+RUN cmake -DTBB_TEST=OFF -DTBB_EXAMPLES=OFF . && make -j$(nproc)
+
+# Stage 2: Create Final Image
+FROM alpine:latest
+
+# Copy the built TBB library from the builder stage
+COPY --from=builder /build/oneTBB-2021.12.0 /opt/tbb
+
+# Set up your application here

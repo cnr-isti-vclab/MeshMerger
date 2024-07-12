@@ -1,0 +1,64 @@
+# Use the pre-built TBB image as the base
+FROM tbb_alpine:tbb_2021_alpine as build
+
+# Set the timezone to Europe/Berlin
+RUN ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+
+# Update system and install other dependencies, including flann-dev
+RUN apk add --no-cache \
+        openvdb-dev \
+        boost-dev \
+        eigen-dev \
+        rapidjson-dev \
+        blosc-dev \
+        lz4-dev \
+        zlib-dev \
+        jsoncpp-dev \
+        boost-filesystem \
+        boost-iostreams \
+        libcurl \
+        glfw-dev \
+        tiff-dev \
+        openexr-dev \
+        dos2unix \
+        curl \
+        npm \
+        nodejs \
+        build-base \
+        cmake \
+        git \
+    && rm -rf /var/cache/apk/*    
+
+# Install global npm packages
+RUN npm install -g pm2
+
+WORKDIR /app
+
+# Clone and build FLANN from source
+RUN git clone --branch 1.9.1 --depth 1 https://github.com/mariusmuja/flann.git && \
+    cd flann && \
+    touch src/cpp/empty.cpp && \
+    sed -i -e "/add_library(flann_cpp SHARED/ s/\"\"/empty.cpp/" \
+           -e "/add_library(flann SHARED/ s/\"\"/empty.cpp/" \
+           src/cpp/CMakeLists.txt && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../.. && \
+    rm -rf flann
+
+# Clone and build PCL from source
+RUN git clone --branch pcl-1.14.0 --depth 1 https://github.com/PointCloudLibrary/pcl.git && \
+    cd pcl && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_search=ON -DBUILD_sample_consensus=ON -DBUILD_features=ON  -DBUILD_filters=ON  -DBUILD_kdtree=ON -DBUILD_keypoints=ON -DBUILD_segmentation=ON -DBUILD_tracking=OFF -DBUILD_stereo=OFF -DBUILD_segmentation=OFF -DBUILD_segmentation=OFF DBUILD_range_image=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../.. && \
+    rm -rf pcl
+
+# Set up the application here
+CMD ["/bin/bash"]
